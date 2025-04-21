@@ -2,6 +2,8 @@ const paypal = require("../../helpers/paypal");
 const Order = require("../../models/Order");
 const Cart = require("../../models/Cart");
 const Product = require("../../models/Product");
+const cloudinary = require('cloudinary');
+const QRCode = require('qrcode');
 
 const createOrder = async (req, res) => {
   try {
@@ -72,6 +74,7 @@ const createOrder = async (req, res) => {
           orderUpdateDate,
           paymentId,
           payerId,
+          qrCodeUrl: "",
         });
 
         await newlyCreatedOrder.save();
@@ -102,12 +105,27 @@ const capturePayment = async (req, res) => {
 
     let order = await Order.findById(orderId);
 
+    
+
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order can not be found",
       });
     }
+
+
+
+    const qrData = order._id.toString();
+    const qrCodeImage = await QRCode.toDataURL(qrData);
+
+    // Upload QR code to Cloudinary
+    const cloudinaryResponse = await cloudinary.v2.uploader.upload(qrCodeImage, {
+      folder: 'qrcodes',
+    });
+
+    // Update the order with the QR code URL
+    order.qrCodeUrl = cloudinaryResponse.secure_url;
 
     order.paymentStatus = "paid";
     order.orderStatus = "confirmed";

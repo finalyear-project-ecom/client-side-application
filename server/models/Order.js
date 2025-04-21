@@ -45,6 +45,21 @@ const OrderSchema = new mongoose.Schema({
   orderUpdateDate: Date,
   paymentId: String,
   payerId: String,
+
+
+  qrCodeUrl: String,
+  deliveryPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  damageStatus: String,
+  productImages: [String],
+
+  deliveryHistory: [
+    {
+      deliveryPersonId: mongoose.Schema.Types.ObjectId, // ID of delivery personnel
+      name: String,
+      timestamp: { type: Date, default: Date.now }
+    }
+  ],
+  currentDeliveryPerson: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
 });
 
 module.exports = mongoose.model("Order", OrderSchema);

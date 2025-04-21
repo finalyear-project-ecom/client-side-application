@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import CommonForm from "../common/form";
 import { DialogContent } from "../ui/dialog";
 import { Label } from "../ui/label";
@@ -11,6 +11,9 @@ import {
   updateOrderStatus,
 } from "@/store/admin/order-slice";
 import { useToast } from "../ui/use-toast";
+import { MapContainer, TileLayer, Marker, Popup ,Polyline} from "react-leaflet";
+import axios from "axios";
+
 import { selectDeliveryBoy } from "@/store/delivery";
 
 const initialFormData = {
@@ -29,7 +32,11 @@ function AdminOrderDetailsView({ orderDetails }) {
   const dispatch = useDispatch();
   const { toast } = useToast();
 
-  console.log(orderDetails, "orderDetailsorderDetails");
+  const [route, setRoute] = useState([]);
+  const [distance, setDistance] = useState(null);
+  const [time, setTime] = useState(null);
+
+  console.log(orderDetails?.productLocation?.lat, "orderDetailsorderDetails");
   console.log(duser, "delivery users");
 
   function handleUpdateStatus(event) {
@@ -49,6 +56,8 @@ function AdminOrderDetailsView({ orderDetails }) {
       }
     });
   }
+
+   console.log(orderDetails)
   function handleSelectDeliveryBoy(event) {
     event.preventDefault();
     const { deliveryId } = dformData;
@@ -56,7 +65,7 @@ function AdminOrderDetailsView({ orderDetails }) {
     console.log("the request came here")
 
     dispatch(
-      selectDeliveryBoy({ id: orderDetails?._id,  deliveryId:deliveryId })
+      selectDeliveryBoy({ id: orderDetails?._id, deliveryId: deliveryId })
     ).then((data) => {
       if (data?.payload?.success) {
         dispatch(getOrderDetailsForAdmin(orderDetails?._id));
@@ -69,9 +78,89 @@ function AdminOrderDetailsView({ orderDetails }) {
     });
   }
 
+  
+   
+
+
+  const [hasFetched, setHasFetched] = useState(false);
+
+  useEffect(() => {
+    const fetchRoute = async () => {
+      const apiKey = "5b3ce3597851110001cf6248b090b8b61cc64dab9d2598625e635fa7";
+      const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${orderDetails.productLocation.lng},${orderDetails.productLocation.lat}&end=${orderDetails.addressInfo.lng},${orderDetails.addressInfo.lat}`;
+  
+      try {
+        const response = await axios.get(url);
+        const coordinates = response.data.features[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        setRoute(coordinates);
+        setDistance((response.data.features[0].properties.summary.distance / 1000).toFixed(2));
+        setTime((response.data.features[0].properties.summary.duration / 60).toFixed(2));
+        setHasFetched(true);
+      } catch (error) {
+        console.error("Error fetching route:", error);
+      }
+    };
+  
+    if (
+      orderDetails?.productLocation &&
+      !hasFetched
+    ) {
+      fetchRoute();
+    }
+  }, [orderDetails, hasFetched]);
+
+
+
   return (
-    <DialogContent className="sm:max-w-[600px]" >
+    <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
       <div className="grid gap-6">
+
+        <div className="map-section">
+
+
+        <MapContainer
+          center={[
+            orderDetails?.productLocation?.lat || 10,
+            orderDetails?.productLocation?.lng || 77,
+          ]}
+          zoom={13}
+          style={{ height: "300px", width: "100%" }}
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <Marker
+            position={[
+              orderDetails?.productLocation?.lat || 10,
+              orderDetails?.productLocation?.lng || 77,
+            ]}
+          >
+            <Popup>Product Location</Popup>
+          </Marker>
+
+     
+        <Marker position={[  orderDetails?.addressInfo?.lat || 10, orderDetails?.addressInfo?.lng ||77]}>
+          <Popup>Customer Location</Popup>
+        </Marker>
+
+        {route.length > 0 && <Polyline positions={route} color="black" />}
+
+
+        </MapContainer>
+
+
+
+
+          <h3>Delivery History</h3>
+          <ul className="delivery-history" >
+            {orderDetails?.deliveryHistory.map((person, index) => (
+              <li key={index} style={{display:"flex" , justifyContent:"space-between",alignItems:"center", backgroundColor:"#E1D9D9",margin:"1rem",padding:"1rem"}}>
+                {person?.name} - {new Date(person?.timestamp).toLocaleString()}
+                <img src={orderDetails.productImages[index]} width={200}  />
+              </li>
+            ))}
+          </ul>
+        </div>
+
+
         <div className="grid gap-2">
           <div className="flex mt-6 items-center justify-between">
             <p className="font-medium">Order ID</p>
@@ -97,13 +186,12 @@ function AdminOrderDetailsView({ orderDetails }) {
             <p className="font-medium">Order Status</p>
             <Label>
               <Badge
-                className={`py-1 px-3 ${
-                  orderDetails?.orderStatus === "confirmed"
-                    ? "bg-green-500"
-                    : orderDetails?.orderStatus === "rejected"
+                className={`py-1 px-3 ${orderDetails?.orderStatus === "confirmed"
+                  ? "bg-green-500"
+                  : orderDetails?.orderStatus === "rejected"
                     ? "bg-red-600"
                     : "bg-black"
-                }`}
+                  }`}
               >
                 {orderDetails?.orderStatus}
               </Badge>
@@ -117,12 +205,12 @@ function AdminOrderDetailsView({ orderDetails }) {
             <ul className="grid gap-3">
               {orderDetails?.cartItems && orderDetails?.cartItems.length > 0
                 ? orderDetails?.cartItems.map((item) => (
-                    <li className="flex items-center justify-between">
-                      <span>Title: {item.title}</span>
-                      <span>Quantity: {item.quantity}</span>
-                      <span>Price: ${item.price}</span>
-                    </li>
-                  ))
+                  <li className="flex items-center justify-between">
+                    <span>Title: {item.title}</span>
+                    <span>Quantity: {item.quantity}</span>
+                    <span>Price: ${item.price}</span>
+                  </li>
+                ))
                 : null}
             </ul>
           </div>
@@ -163,29 +251,7 @@ function AdminOrderDetailsView({ orderDetails }) {
             onSubmit={handleUpdateStatus}
           />
         </div>
-        <div>
-          {orderDetails?.deliveryId ==="not alloted"
-          ?
-          <CommonForm
-            formControls={[
-              {
-                label: "Choose Delivery Boy",
-                name: "deliveryId",
-                componentType: "select",
-                options: duser?.map((b)=>({id :b._id, label:b?.userName}))
-               
-              },
-            ]}
-            formData={dformData}
-            setFormData={setdFormData}
-            buttonText={"Select Delivery boy"}
-            onSubmit={handleSelectDeliveryBoy}
-          />
-          :
-          <p>Delivery patner already choosen</p>
-          } 
-          
-        </div>
+       
         <br />
         <br />
         <br />
@@ -193,7 +259,7 @@ function AdminOrderDetailsView({ orderDetails }) {
         <br />
         <br />
       </div>
-    </DialogContent>
+    </DialogContent >
   );
 }
 

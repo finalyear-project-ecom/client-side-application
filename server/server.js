@@ -18,8 +18,7 @@ const shopReviewRouter = require("./routes/shop/review-routes");
 
 const commonFeatureRouter = require("./routes/common/feature-routes");
 
-//create a database connection -> u can also
-//create a separate file for this and then import/use that file here
+
 
 console.log(process.env.MONGO_URL)
 mongoose
@@ -63,25 +62,6 @@ app.use("/api/common/feature", commonFeatureRouter);
 
 
 
-// Store product location (initial location)
-let productLocation = { lat: 12.9716, lng: 77.5946 }; // Example: Bangalore
-
-// Endpoint to get the product location
-app.get("/product-location", (req, res) => {
-  res.json(productLocation);
-});
-
-// Endpoint to update product location (used by delivery boy app)
-app.post("/update-location", (req, res) => {
-  const { lat, lng } = req.body;
-
-  console.log(req.body)
-  if (!lat || !lng) {
-    return res.status(400).json({ error: "Latitude and Longitude are required" });
-  }
-  productLocation = { lat, lng };
-  res.json({ message: "Product location updated successfully" });
-});
 
 
 app.listen(PORT, () => console.log(`Server is now running on port ${PORT}`));
